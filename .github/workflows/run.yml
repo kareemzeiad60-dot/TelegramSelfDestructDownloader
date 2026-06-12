@@ -1,0 +1,41 @@
+name: Telegram Downloader Bot
+
+# تشغيل الوركفلو عند الدفع (Push) للكود، أو يدوياً، أو عند إعادة التشغيل تلقائياً
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # يتيح لك تشغيل البوت يدوياً من موقع جيت هاب
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. جلب ملفات الكود من المستودع
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. تثبيت بيئة بايثون (Python 3.10)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-node-version: '3.10'
+
+    # 3. تثبيت المكتبات المطلوبة (مثل Telethon)
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install telethon; fi
+
+    # 4. تشغيل السكربت وتمرير السيكريت له من إعدادات جيت هاب
+    - name: Run Telegram Script
+      env:
+        TG_API_ID: ${{ secrets.TG_API_ID }}
+        TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        TG_PHONE: ${{ secrets.TG_PHONE }}
+        TG_SESSION_B64: ${{ secrets.TG_SESSION_B64 }} # مهم جداً للاستضافة
+        TG_MAX_FILE_SIZE_MB: ${{ secrets.TG_MAX_FILE_SIZE_MB }}
+        TG_INCLUDE_CHAT_TITLE: ${{ secrets.TG_INCLUDE_CHAT_TITLE }}
+        TG_FORWARD_TO_SAVED: ${{ secrets.TG_FORWARD_TO_SAVED }}
+      run: |
+        python main.py
