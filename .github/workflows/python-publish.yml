@@ -3,14 +3,17 @@ name: Run Bot
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.12'
 
@@ -30,8 +33,8 @@ jobs:
 
       - name: Run bot
         env:
-          TG_API_ID:    ${{ secrets.TG_API_ID }}
-          TG_API_HASH:  ${{ secrets.TG_API_HASH }}
-          TG_PHONE:     ${{ secrets.TG_PHONE }}
+          TG_API_ID:      ${{ secrets.TG_API_ID }}
+          TG_API_HASH:    ${{ secrets.TG_API_HASH }}
+          TG_PHONE:       ${{ secrets.TG_PHONE }}
           TG_SESSION_B64: ${{ secrets.TG_SESSION_B64 }}
         run: python main.py
