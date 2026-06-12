@@ -1,26 +1,37 @@
-name: Release
+name: Run Bot
 
 on:
-  release:
-    types: [created]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  release:
+  run:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Upload files to release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/setup-python@v5
         with:
-          files: |
-            main.py
-            login.py
-            requirements.txt
-            Procfile
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore session
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TG_SESSION_B64: ${{ secrets.TG_SESSION_B64 }}
+          TG_PHONE: ${{ secrets.TG_PHONE }}
+        run: |
+          if [ -n "$TG_SESSION_B64" ] && [ -n "$TG_PHONE" ]; then
+            SAFE_PHONE=$(echo "$TG_PHONE" | tr -d '+- ')
+            echo "$TG_SESSION_B64" | base64 -d > "session_${SAFE_PHONE}.session"
+            echo "Session restored."
+          fi
+
+      - name: Run bot
+        env:
+          TG_API_ID:    ${{ secrets.TG_API_ID }}
+          TG_API_HASH:  ${{ secrets.TG_API_HASH }}
+          TG_PHONE:     ${{ secrets.TG_PHONE }}
+          TG_SESSION_B64: ${{ secrets.TG_SESSION_B64 }}
+        run: python main.py
