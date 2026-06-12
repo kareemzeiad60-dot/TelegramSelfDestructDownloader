@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload files to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.py
+            login.py
+            requirements.txt
+            Procfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
