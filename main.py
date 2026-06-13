@@ -82,15 +82,13 @@ async def main():
             return
 
         ttl = None
-        file_extension = ".bin"  # امتداد افتراضي لو فشل التحديد
+        file_extension = ".bin"
 
-        # تحديد نوع الميديا والامتداد المناسب لها
         if isinstance(media, MessageMediaPhoto):
             ttl = getattr(media, "ttl_seconds", None)
-            file_extension = ".jpg"  # الصور ذاتية التدمير تكون غالباً JPG
+            file_extension = ".jpg"
         elif isinstance(media, MessageMediaDocument):
             ttl = getattr(media, "ttl_seconds", None)
-            # محاولة جلب الامتداد الفعلي للملف أو تحديد امتداد فيديو افتراضي
             attributes = getattr(media.document, "attributes", [])
             is_video = any(hasattr(attr, "duration") for attr in attributes)
             file_extension = ".mp4" if is_video else ".bin"
@@ -102,33 +100,41 @@ async def main():
         print(f"📥 View-once from {chat_title}")
 
         try:
-            data = await msg.download_media(bytes)
+            # تحميل الملف مؤقتاً كـ ملف حقيقي وليس باينري في الذاكرة لتجنب مشكلة unnamed
+            temp_filename = f"media_{msg.id}{file_extension}"
+            
+            # تحميل الميديا مباشرة إلى ملف على القرص
+            path = await msg.download_media(file=temp_filename)
 
-            if data is None:
+            if not path or not os.path.exists(path):
                 log.warning(f"Could not download media from {chat_title}")
                 return
 
-            size_mb = len(data) / (1024 * 1024)
+            size_mb = os.path.getsize(path) / (1024 * 1024)
             if size_mb > MAX_FILE_SIZE_MB:
                 log.info(f"Skipping: {size_mb:.1f}MB exceeds limit {MAX_FILE_SIZE_MB}MB")
                 print(f"⏭️ Skipping large file ({size_mb:.1f}MB) from {chat_title}")
+                try: os.remove(path)
+                except: pass
                 return
 
             if FORWARD_TO_SAVED:
                 caption = f"From: {chat_title}" if INCLUDE_CHAT_TITLE else ""
                 
-                # التعديل هنا: فحص نوع الملف لإرساله بالطريقة الصحيحة للمعاينة
+                # إرسال الملف الحقيقي من المسار، Telethon سيتعرف على امتداده تلقائياً بنسبة 100%
                 if file_extension == ".jpg":
-                    # إرسال كصورة حقيقية ومضغوطة تظهر في المحادثة مباشرة
-                    await client.send_file("me", data, caption=caption, force_file=False)
-                    log.info(f"Forwarded as photo to Saved Messages from {chat_title}")
+                    await client.send_file("me", path, caption=caption, force_file=False)
                 else:
-                    # إرسال كملف فيديو أو مستند مع تعيين الاسم والامتداد
-                    temp_filename = f"media_{msg.id}{file_extension}"
-                    await client.send_file("me", data, caption=caption, file_name=temp_filename)
-                    log.info(f"Forwarded as file ({temp_filename}) to Saved Messages from {chat_title}")
+                    await client.send_file("me", path, caption=caption)
                 
+                log.info(f"Forwarded to Saved Messages from {chat_title}")
                 print(f"✅ Forwarded from {chat_title} successfully")
+
+            # حذف الملف المؤقت بعد إرساله بنجاح لضمان عدم امتلاء السيرفر
+            try:
+                os.remove(path)
+            except Exception as e:
+                log.error(f"Failed to delete temp file {path}: {e}")
 
         except Exception as e:
             log.error(f"Error processing message from {chat_title}: {e}")
@@ -140,4 +146,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
+            
