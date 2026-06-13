@@ -1,1 +1,55 @@
+name: Telegram Downloader Bot 2 Hours Loop
 
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # يتيح لك تشغيل البوت يدوياً من موقع جيت هاب في أي وقت
+  schedule:
+    - cron: '0 */2 * * *' # تشغيل احتياطي تلقائي كل ساعتين إذا توقفت الحلقة لأي سبب
+  repository_dispatch:
+    types: [restart-bot] # الحدث الخاص بإعادة التشغيل الذاتي
+
+# إعطاء صلاحيات كاملة للـ الوركفلو ليتمكن من قراءة الملفات واستدعاء نفسه لإطلاق سيرفر جديد
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install telethon; fi
+
+    - name: Run Telegram Script with 2-Hour Timeout
+      env:
+        # المتغيرات الأساسية للحساب (تأكد من وجودها في الـ Secrets)
+        TG_API_ID: ${{ secrets.TG_API_ID }}
+        TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        TG_PHONE: ${{ secrets.TG_PHONE }}
+        TG_SESSION_B64: ${{ secrets.TG_SESSION_B64 }}
+        
+        # الإعدادات العامة لحجم الملفات والعناوين
+        TG_MAX_FILE_SIZE_MB: ${{ secrets.TG_MAX_FILE_SIZE_MB }}
+        TG_INCLUDE_CHAT_TITLE: ${{ secrets.TG_INCLUDE_CHAT_TITLE }}
+        TG_FORWARD_TO_SAVED: ${{ secrets.TG_FORWARD_TO_SAVED }}
+      run: |
+        # تشغيل السكربت لمدة ساعتين (7200 ثانية) ثم إغلاقه بأمان لإطلاق الجوب التالية نظيفة
+        timeout 7200 python main.py || true
+
+    - name: Trigger Next Run Automatically
+      if: always() # يضمن تنفيذ هذه الخطوة حتى لو حدث خطأ مفاجئ لضمان استمرار حلقة التشغيل
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        event-type: restart-bot
