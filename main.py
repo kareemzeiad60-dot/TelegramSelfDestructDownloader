@@ -117,14 +117,18 @@ async def main():
             if FORWARD_TO_SAVED:
                 caption = f"From: {chat_title}" if INCLUDE_CHAT_TITLE else ""
                 
-                # تسمية الملف باسم مؤقت مع الامتداد الصحيح ليتمكن تليجرام من فهمه وإرساله بشكل صحيح
-                temp_filename = f"media_{msg.id}{file_extension}"
+                # التعديل هنا: فحص نوع الملف لإرساله بالطريقة الصحيحة للمعاينة
+                if file_extension == ".jpg":
+                    # إرسال كصورة حقيقية ومضغوطة تظهر في المحادثة مباشرة
+                    await client.send_file("me", data, caption=caption, force_file=False)
+                    log.info(f"Forwarded as photo to Saved Messages from {chat_title}")
+                else:
+                    # إرسال كملف فيديو أو مستند مع تعيين الاسم والامتداد
+                    temp_filename = f"media_{msg.id}{file_extension}"
+                    await client.send_file("me", data, caption=caption, file_name=temp_filename)
+                    log.info(f"Forwarded as file ({temp_filename}) to Saved Messages from {chat_title}")
                 
-                # استخدام دالة النقل مع تمرير اسم الملف والبيانات معاً
-                await client.send_file("me", data, caption=caption, attributes=[], force_file=False, file_name=temp_filename)
-                
-                log.info(f"Forwarded to Saved Messages from {chat_title} as {temp_filename}")
-                print(f"✅ Forwarded from {chat_title} with extension {file_extension}")
+                print(f"✅ Forwarded from {chat_title} successfully")
 
         except Exception as e:
             log.error(f"Error processing message from {chat_title}: {e}")
@@ -136,3 +140,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
