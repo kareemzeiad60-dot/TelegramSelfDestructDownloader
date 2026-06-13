@@ -1,15 +1,14 @@
-name: Telegram Downloader Bot 2 Hours Loop
+name: Telegram Downloader Bot 2 Hours Loop (Single Account)
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # تتيح لك تشغيله يدوياً في أي وقت
+  workflow_dispatch: 
   schedule:
-    - cron: '0 */2 * * *' # تشغيل احتياطي من جيت هاب كل ساعتين لو توقفت الحلقة لأي سبب
+    - cron: '0 */2 * * *' 
   repository_dispatch:
-    types: [restart-bot] # الحدث الذي سيطلقه السكربت لإعادة تشغيل نفسه
+    types: [restart-bot]
 
-# إعطاء صلاحيات للـ Workflow لكي يستطيع إطلاق جوب جديدة تلقائياً
 permissions:
   contents: write
   actions: write
@@ -41,11 +40,11 @@ jobs:
         TG_INCLUDE_CHAT_TITLE: ${{ secrets.TG_INCLUDE_CHAT_TITLE }}
         TG_FORWARD_TO_SAVED: ${{ secrets.TG_FORWARD_TO_SAVED }}
       run: |
-        # تشغيل السكربت لمدة ساعتين تماماً (7200 ثانية) ثم إغلاقه بأمان
+        # تشغيل السكربت لمدة ساعتين (7200 ثانية) ثم إغلاقه بأمان لإطلاق الجوب التالية
         timeout 7200 python main.py || true
 
     - name: Trigger Next Run Automatically
-      if: always() # يضمن تنفيذ هذا السطر حتى لو توقف السكربت بسبب خطأ
+      if: always()
       uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
