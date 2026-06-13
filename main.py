@@ -17,17 +17,17 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Config من environment variables ──
-# تم استخدام .get() مع الـ API_ID لتفادي توقف السكربت إذا لم يجد المتغير فوراً
 API_ID   = int(os.environ.get("TG_API_ID", 0))
 API_HASH = os.environ.get("TG_API_HASH", "")
 PHONE    = os.environ.get("TG_PHONE", "")
 
-# التأكد من وجود المتغيرات الأساسية
 if not API_ID or not API_HASH or not PHONE:
     log.critical("❌ خطأ: يجب تعيين TG_API_ID و TG_API_HASH و TG_PHONE في السيكريت!")
     exit(1)
 
-MAX_FILE_SIZE_MB   = int(os.environ.get("TG_MAX_FILE_SIZE_MB", 250))
+raw_size = os.environ.get("TG_MAX_FILE_SIZE_MB", "").strip()
+MAX_FILE_SIZE_MB = int(raw_size) if raw_size else 250
+
 INCLUDE_CHAT_TITLE = os.environ.get("TG_INCLUDE_CHAT_TITLE", "true").lower() == "true"
 FORWARD_TO_SAVED   = os.environ.get("TG_FORWARD_TO_SAVED", "true").lower() == "true"
 
@@ -41,7 +41,7 @@ def restore_session():
         return
     path = f"{SESSION_NAME}.session"
     if os.path.exists(path):
-        return  # موجود خلاص
+        return
     try:
         data = base64.b64decode(b64)
         with open(path, "wb") as f:
@@ -53,13 +53,9 @@ def restore_session():
 
 async def main():
     restore_session()
-    
-    # إنشاء اتصال التليجرام
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
-    # بدء التشغيل (سيطلب الكود من الـ Terminal إذا لم تكن الجلسة محفوظة)
     await client.start(phone=PHONE)
-    
     me = await client.get_me()
     log.info(f"Logged in as: {me.username or f'{me.first_name} {me.last_name}'.strip()}")
     print(f"✅ Logged in as: {me.username or me.first_name}")
@@ -68,11 +64,9 @@ async def main():
     async def handler(event):
         msg = event.message
 
-        # تجاهل الرسائل الصادرة
         if msg.out:
             return
 
-        # جيب اسم الشات
         chat_title = "Unknown"
         try:
             chat = await event.get_chat()
@@ -88,12 +82,19 @@ async def main():
             return
 
         ttl = None
+        file_extension = ".bin"  # امتداد افتراضي لو فشل التحديد
+
+        # تحديد نوع الميديا والامتداد المناسب لها
         if isinstance(media, MessageMediaPhoto):
             ttl = getattr(media, "ttl_seconds", None)
+            file_extension = ".jpg"  # الصور ذاتية التدمير تكون غالباً JPG
         elif isinstance(media, MessageMediaDocument):
             ttl = getattr(media, "ttl_seconds", None)
+            # محاولة جلب الامتداد الفعلي للملف أو تحديد امتداد فيديو افتراضي
+            attributes = getattr(media.document, "attributes", [])
+            is_video = any(hasattr(attr, "duration") for attr in attributes)
+            file_extension = ".mp4" if is_video else ".bin"
 
-        # التحقق مما إذا كانت الميديا ذاتية التدمير (View-Once)
         if not ttl:
             return
 
@@ -101,7 +102,6 @@ async def main():
         print(f"📥 View-once from {chat_title}")
 
         try:
-            # تحميل الميديا في الذاكرة
             data = await msg.download_media(bytes)
 
             if data is None:
@@ -116,10 +116,15 @@ async def main():
 
             if FORWARD_TO_SAVED:
                 caption = f"From: {chat_title}" if INCLUDE_CHAT_TITLE else ""
-                # إرسال الملف إلى الرسائل المحفوظة (Saved Messages)
-                await client.send_file("me", data, caption=caption)
-                log.info(f"Forwarded to Saved Messages from {chat_title}")
-                print(f"✅ Forwarded from {chat_title}")
+                
+                # تسمية الملف باسم مؤقت مع الامتداد الصحيح ليتمكن تليجرام من فهمه وإرساله بشكل صحيح
+                temp_filename = f"media_{msg.id}{file_extension}"
+                
+                # استخدام دالة النقل مع تمرير اسم الملف والبيانات معاً
+                await client.send_file("me", data, caption=caption, attributes=[], force_file=False, file_name=temp_filename)
+                
+                log.info(f"Forwarded to Saved Messages from {chat_title} as {temp_filename}")
+                print(f"✅ Forwarded from {chat_title} with extension {file_extension}")
 
         except Exception as e:
             log.error(f"Error processing message from {chat_title}: {e}")
